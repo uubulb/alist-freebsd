@@ -7,11 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Build Alist
     steps:
-    - uses: actions/checkout@v4
     - name: Build Alist
       uses: vmactions/freebsd-vm@v1
       with:
         usesh: true
+        release: 13.2
         prepare: |
           pkg install -y node wget curl git go121 gcc bash gawk gsed
           ln -s /usr/local/bin/go121 /usr/local/bin/go
@@ -27,4 +27,25 @@ jobs:
       with:
         name: alist-freebsd
         path: |
-              alist
+            alist/alist
+
+    - name: Generate release tag
+      id: tag
+      run: echo "release_tag=$(wget -qO- https://api.github.com/repos/alist-org/alist/tags | gawk -F '["v]' '/name/{print "v"$5;exit}')" >> $GITHUB_OUTPUT
+
+    - name: Create release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        files: |
+              alist/alist
+              
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        token: ${{ github.token }}
+        repository: ${{ github.repository }}
+        retain_days: 1
+        keep_minimum_runs: 8
