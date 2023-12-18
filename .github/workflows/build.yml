@@ -1,0 +1,30 @@
+name: Build Alist
+
+on: workflow_dispatch
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Build Alist
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Alist
+      uses: vmactions/freebsd-vm@v1
+      with:
+        usesh: true
+        prepare: |
+          pkg install -y node wget curl git go121 gcc bash gawk gsed
+          ln -s /usr/local/bin/go121 /usr/local/bin/go
+        run: |
+          export LATEST_APP=$(wget -qO- https://api.github.com/repos/alist-org/alist/tags | gawk -F '["v]' '/name/{print "v"$5;exit}')
+          git clone -b $LATEST_APP https://github.com/alist-org/alist
+          cd alist/public && wget https://github.com/alist-org/alist-web/releases/latest/download/dist.tar.gz && tar xzf dist.tar.gz && rm dist.tar.gz
+          cd ..
+          appName="alist" builtAt="$(date +'%F %T %z')" goVersion=$(go version | gsed 's/go version //') gitAuthor=$(git show -s --format='format:%aN <%ae>' HEAD) gitCommit=$(git log --pretty=format:"%h" -1) version=$(git describe --long --tags --dirty --always) webVersion=$(wget -qO- -t1 -T2 "https://api.github.com/repos/alist-org/alist-web/releases/latest" | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g') ldflags="-s -w -X 'github.com/alist-org/alist/v3/internal/conf.BuiltAt=$builtAt' -X 'github.com/alist-org/alist/v3/internal/conf.GoVersion=$goVersion' -X 'github.com/alist-org/alist/v3/internal/conf.GitAuthor=$gitAuthor' -X 'github.com/alist-org/alist/v3/internal/conf.GitCommit=$gitCommit' -X 'github.com/alist-org/alist/v3/internal/conf.Version=$version' -X 'github.com/alist-org/alist/v3/internal/conf.WebVersion=$webVersion'" go build -ldflags="$ldflags" .
+          
+    - name: Upload artifact
+      uses: actions/upload-artifact@main
+      with:
+        name: alist-freebsd
+        path: |
+              alist
